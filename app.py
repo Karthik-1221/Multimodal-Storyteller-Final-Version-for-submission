@@ -54,7 +54,7 @@ if not st.session_state.authenticated:
 # 🚨 After widgets rendered, safely rerun
 if st.session_state.rerun_trigger:
     st.session_state.rerun_trigger = False
-    st.experimental_rerun()
+    st.rerun()
 
 # ✅ Success Message
 st.sidebar.success(f"Welcome, {st.session_state.user} 🪶")
