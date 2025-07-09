@@ -28,33 +28,37 @@ def check_login(username, password):
         return hashed_input == passwords[index]
     return False
 
-def login():
+# Initialize session states
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "rerun_trigger" not in st.session_state:
+    st.session_state.rerun_trigger = False
+
+# Show login form if not authenticated
+if not st.session_state.authenticated:
     st.sidebar.title("🔐 Login")
     username = st.sidebar.text_input("Username")
     password = st.sidebar.text_input("Password", type="password")
-    if st.sidebar.button("Login"):
+    login_button = st.sidebar.button("Login")
+
+    if login_button:
         if check_login(username, password):
             st.session_state.authenticated = True
             st.session_state.user = username
-            st.session_state.rerun_trigger = True  # 🚨 Flag for safe rerun
+            st.session_state.rerun_trigger = True
         else:
             st.sidebar.error("Invalid credentials. Try again.")
 
-# Initialize login session state
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+    st.stop()  # Stop after login UI setup
 
-# Handle login logic
-if not st.session_state.authenticated:
-    login()
-    # 🚨 Trigger rerun safely outside widget rendering
-    if st.session_state.get("rerun_trigger"):
-        st.session_state.rerun_trigger = False
-        st.experimental_rerun()
-    st.stop()
+# 🚨 After widgets rendered, safely rerun
+if st.session_state.rerun_trigger:
+    st.session_state.rerun_trigger = False
+    st.experimental_rerun()
 
-# ✅ Show welcome message after login
+# ✅ Success Message
 st.sidebar.success(f"Welcome, {st.session_state.user} 🪶")
+
 
 
 
