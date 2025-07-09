@@ -18,24 +18,15 @@ def check_login(username, password):
     try:
         usernames = st.secrets["auth"]["usernames"]
         passwords = st.secrets["auth"]["passwords"]
-        st.write("Loaded usernames from secrets:", usernames)
-        st.write("Loaded passwords from secrets:", passwords)
     except KeyError:
-        st.error("🔐 Authentication details not found. Please set secrets in Streamlit Cloud.")
+        st.error("🔐 Secrets not found. Please set credentials in Streamlit Cloud.")
         st.stop()
 
     hashed_input = hashlib.sha256(password.encode()).hexdigest()
-    st.write("Entered username:", username)
-    st.write("Entered password hash:", hashed_input)
-
     if username in usernames:
         index = usernames.index(username)
-        st.write("Matching against stored hash:", passwords[index])
         return hashed_input == passwords[index]
-    else:
-        st.write("Username not found in secrets.")
     return False
-
 
 def login():
     st.sidebar.title("🔐 Login")
@@ -45,19 +36,26 @@ def login():
         if check_login(username, password):
             st.session_state.authenticated = True
             st.session_state.user = username
-            st.experimental_rerun()
+            st.session_state.rerun_trigger = True  # 🚨 Flag for safe rerun
         else:
             st.sidebar.error("Invalid credentials. Try again.")
 
+# Initialize login session state
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
+# Handle login logic
 if not st.session_state.authenticated:
     login()
+    # 🚨 Trigger rerun safely outside widget rendering
+    if st.session_state.get("rerun_trigger"):
+        st.session_state.rerun_trigger = False
+        st.experimental_rerun()
     st.stop()
 
-# ✅ Show welcome message once logged in
+# ✅ Show welcome message after login
 st.sidebar.success(f"Welcome, {st.session_state.user} 🪶")
+
 
 
 
