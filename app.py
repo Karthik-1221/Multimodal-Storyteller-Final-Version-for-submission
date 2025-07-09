@@ -15,12 +15,17 @@ import streamlit as st
 import hashlib
 
 def check_login(username, password):
-    usernames = st.secrets["auth"]["usernames"]
-    passwords = st.secrets["auth"]["passwords"]
-    hashed = hashlib.sha256(password.encode()).hexdigest()
+    try:
+        usernames = st.secrets["auth"]["usernames"]
+        passwords = st.secrets["auth"]["passwords"]
+    except KeyError:
+        st.error("🔐 Authentication details not found. Please set secrets in Streamlit Cloud.")
+        st.stop()
+
+    hashed_input = hashlib.sha256(password.encode()).hexdigest()
     if username in usernames:
         index = usernames.index(username)
-        return hashed == passwords[index]
+        return hashed_input == passwords[index]
     return False
 
 def login():
@@ -33,7 +38,7 @@ def login():
             st.session_state.user = username
             st.experimental_rerun()
         else:
-            st.sidebar.error("Invalid credentials")
+            st.sidebar.error("Invalid credentials. Try again.")
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -42,8 +47,9 @@ if not st.session_state.authenticated:
     login()
     st.stop()
 
-# ✅ Welcome Message (after authentication)
+# ✅ Show welcome message once logged in
 st.sidebar.success(f"Welcome, {st.session_state.user} 🪶")
+
 
 
 # --- 1. Configuration and Setup ---
