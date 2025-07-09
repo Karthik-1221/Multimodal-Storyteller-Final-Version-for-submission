@@ -18,15 +18,24 @@ def check_login(username, password):
     try:
         usernames = st.secrets["auth"]["usernames"]
         passwords = st.secrets["auth"]["passwords"]
+        st.write("Loaded usernames from secrets:", usernames)
+        st.write("Loaded passwords from secrets:", passwords)
     except KeyError:
         st.error("🔐 Authentication details not found. Please set secrets in Streamlit Cloud.")
         st.stop()
 
     hashed_input = hashlib.sha256(password.encode()).hexdigest()
+    st.write("Entered username:", username)
+    st.write("Entered password hash:", hashed_input)
+
     if username in usernames:
         index = usernames.index(username)
+        st.write("Matching against stored hash:", passwords[index])
         return hashed_input == passwords[index]
+    else:
+        st.write("Username not found in secrets.")
     return False
+
 
 def login():
     st.sidebar.title("🔐 Login")
