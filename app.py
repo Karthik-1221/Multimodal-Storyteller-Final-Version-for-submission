@@ -11,6 +11,41 @@ from dotenv import load_dotenv
 import streamlit.components.v1 as components
 import base64  # Needed for Stability.ai's API response
 
+import streamlit as st
+import hashlib
+
+def check_login(username, password):
+    usernames = st.secrets["auth"]["usernames"]
+    passwords = st.secrets["auth"]["passwords"]
+    hashed = hashlib.sha256(password.encode()).hexdigest()
+    if username in usernames:
+        index = usernames.index(username)
+        return hashed == passwords[index]
+    return False
+
+def login():
+    st.sidebar.title("🔐 Login")
+    username = st.sidebar.text_input("Username")
+    password = st.sidebar.text_input("Password", type="password")
+    if st.sidebar.button("Login"):
+        if check_login(username, password):
+            st.session_state.authenticated = True
+            st.session_state.user = username
+            st.experimental_rerun()
+        else:
+            st.sidebar.error("Invalid credentials")
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    login()
+    st.stop()
+
+# ✅ Welcome Message (after authentication)
+st.sidebar.success(f"Welcome, {st.session_state.user} 🪶")
+
+
 # --- 1. Configuration and Setup ---
 
 st.set_page_config(layout="wide", page_title="The Multimodal Storyteller", page_icon="🪶")
