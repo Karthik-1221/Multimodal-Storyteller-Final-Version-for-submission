@@ -10,7 +10,6 @@ import os
 from dotenv import load_dotenv
 import streamlit.components.v1 as components
 import base64
-from elevenlabs import play, save
 from elevenlabs.client import ElevenLabs
 
 # Load environment variables at the very beginning of the script.
@@ -129,7 +128,7 @@ def generate_image_stability(prompt):
             st.error(f"An error occurred with the Stability API: {e}")
             return None
 
-# NEW: Function to generate and play audio with background music
+# CORRECTED: Function to generate and play audio with background music
 def generate_and_play_audio(text, music_file="background_music.mp3"):
     """
     Generates audio using ElevenLabs and plays it via a custom HTML component
@@ -144,9 +143,10 @@ def generate_and_play_audio(text, music_file="background_music.mp3"):
         
         # Generate the audio data from the text
         with st.spinner("The Narrator is preparing their voice..."):
-            audio_data = client.generate(
+            # FIX: The method is client.text_to_speech.convert(), not client.generate()
+            audio_data = client.text_to_speech.convert(
+                voice="Rachel",  # You can replace "Rachel" with your chosen Voice ID
                 text=text,
-                voice="Rachel", # You can replace "Rachel" with your chosen Voice ID
                 model="eleven_multilingual_v2"
             )
 
