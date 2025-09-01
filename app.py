@@ -141,13 +141,17 @@ def generate_and_play_audio(text, music_file="background_music.mp3"):
         client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
         
         with st.spinner("The Narrator is preparing their voice..."):
-            # FIX: The 'model' parameter is not used in this specific method call.
-            audio_data = client.text_to_speech.convert(
-                voice_id="21m00Tcm4TlvDq8ikWAM",  # This is the ID for "Rachel". Replace with your chosen Voice ID.
+            # The API returns a generator that streams audio chunks.
+            audio_generator = client.text_to_speech.convert(
+                voice_id="21m00Tcm4TlvDq8ikWAM",  # This is the ID for "Rachel".
                 text=text
             )
 
-        audio_b64 = base64.b64encode(audio_data).decode()
+            # FIX: Collect the audio chunks from the generator.
+            audio_bytes = b"".join(audio_generator)
+
+        # Encode the complete audio data to Base64
+        audio_b64 = base64.b64encode(audio_bytes).decode()
         
         if os.path.exists(music_file):
             with open(music_file, "rb") as f:
@@ -219,13 +223,10 @@ elif st.session_state.app_stage == "story_start":
     with st.form("start_story_form"):
         initial_prompt = st.text_area("Your opening sentence:", "The last starship captain woke from cryo-sleep to the sound of a ticking clock.")
         if st.form_submit_button("Start the Saga") and initial_prompt:
-            # Use a placeholder for story context as it's the beginning
             ai_response = generate_story_chapter(initial_prompt, st.session_state.world_bible, initial_prompt)
             if ai_response:
                 initial_image = generate_image_stability(ai_response["image_prompt"])
-                # Add user's first line
                 st.session_state.story_chapters.append({"text": initial_prompt, "image": None})
-                # Add AI's first response with an image
                 st.session_state.story_chapters.append({"text": ai_response["narrative_chapter"], "image": initial_image})
                 st.session_state.latest_choices = ai_response["next_choices"]
                 st.session_state.app_stage = "story_cycle"
@@ -256,7 +257,6 @@ elif st.session_state.app_stage == "story_cycle":
                     st.session_state.story_chapters.append({"text": ai_response["narrative_chapter"], "image": new_image})
                     st.session_state.latest_choices = ai_response["next_choices"]
                     
-                    # Automatically narrate the new chapter
                     generate_and_play_audio(ai_response["narrative_chapter"])
                     
                     st.rerun()
@@ -265,7 +265,6 @@ elif st.session_state.app_stage == "story_cycle":
 st.sidebar.markdown("---")
 st.sidebar.header("Controls")
 if st.sidebar.button("Start a New Saga (Restart)"):
-    # Clear all session state keys to start fresh
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.rerun()
