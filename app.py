@@ -48,7 +48,7 @@ if not ELEVENLABS_API_KEY:
 
 # --- 2. AI and Helper Functions ---
 
-# This function remains the same
+@st.cache_data
 def generate_world_bible(theme, archetype, contradiction):
     """Generates the story's core rules and tone using Gemini."""
     prompt = f"""
@@ -62,16 +62,16 @@ def generate_world_bible(theme, archetype, contradiction):
         response = model.generate_content(prompt)
         return response.text
 
-# This function remains the same
-def generate_story_chapter(story_context, world_bible, user_choice):
+@st.cache_data
+def generate_story_chapter(_story_context, _world_bible, user_choice):
     """Generates the next narrative chapter, choices, and image prompt."""
     model = genai.GenerativeModel('gemini-1.5-flash-latest')
     generation_config = genai.types.GenerationConfig(temperature=0.9)
     prompt = f"""
     You are a multi-persona Storytelling Engine. Follow these steps precisely.
     The user's choice for the last chapter was: "{user_choice}".
-    The full story context so far is: "{story_context}".
-    The secret World Bible for this universe is: "{world_bible}".
+    The full story context so far is: "{_story_context}".
+    The secret World Bible for this universe is: "{_world_bible}".
 
     Step 1: Act as a Literary Artist. Write a rich, descriptive paragraph expanding on the user's choice.
     Step 2: Act as a Plot Theorist. Based on the new paragraph, generate three distinct, single-sentence plot choices. One must be a 'Wildcard'. Format these choices as a valid JSON array of strings.
@@ -89,7 +89,7 @@ def generate_story_chapter(story_context, world_bible, user_choice):
             st.code(response.text)
             return None
 
-# This function remains the same
+@st.cache_data
 def generate_image_stability(prompt):
     """Generates an image using the Stability.ai API with a valid model."""
     if not STABILITY_API_KEY:
@@ -128,7 +128,6 @@ def generate_image_stability(prompt):
             st.error(f"An error occurred with the Stability API: {e}")
             return None
 
-# CORRECTED: Function to generate and play audio with background music
 def generate_and_play_audio(text, music_file="background_music.mp3"):
     """
     Generates audio using ElevenLabs and plays it via a custom HTML component
@@ -141,16 +140,13 @@ def generate_and_play_audio(text, music_file="background_music.mp3"):
     try:
         client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
         
-        # Generate the audio data from the text
         with st.spinner("The Narrator is preparing their voice..."):
-            # FIX: The method is client.text_to_speech.convert(), not client.generate()
             audio_data = client.text_to_speech.convert(
-                voice="Rachel",  # You can replace "Rachel" with your chosen Voice ID
+                voice_id="21m00Tcm4TlvDq8ikWAM",  # This is the Voice ID for "Rachel"
                 text=text,
                 model="eleven_multilingual_v2"
             )
 
-        # Base64 encode the audio data and the local music file for embedding in HTML
         audio_b64 = base64.b64encode(audio_data).decode()
         
         if os.path.exists(music_file):
@@ -160,7 +156,6 @@ def generate_and_play_audio(text, music_file="background_music.mp3"):
             st.warning(f"Background music file '{music_file}' not found.")
             music_b64 = ""
 
-        # Custom HTML component with JavaScript to manage the two audio tracks
         components.html(f"""
             <audio id="bg-music" loop>
                 <source src="data:audio/mp3;base64,{music_b64}" type="audio/mp3">
@@ -201,7 +196,6 @@ def generate_and_play_audio(text, music_file="background_music.mp3"):
 st.title("The Multimodal Storyteller 🪶")
 st.markdown("Co-create a unique saga with AI. Forge a world, make choices, and bring your story to life with generated art and audio.")
 
-# Initialize session state for the app's logic
 if 'app_stage' not in st.session_state:
     st.session_state.app_stage = "world_forge"
     st.session_state.world_bible = None
@@ -225,10 +219,10 @@ elif st.session_state.app_stage == "story_start":
     with st.form("start_story_form"):
         initial_prompt = st.text_area("Your opening sentence:", "The last starship captain woke from cryo-sleep to the sound of a ticking clock.")
         if st.form_submit_button("Start the Saga") and initial_prompt:
-            ai_response = generate_story_chapter("", st.session_state.world_bible, initial_prompt)
+            ai_response = generate_story_chapter(initial_prompt, st.session_state.world_bible, initial_prompt)
             if ai_response:
                 initial_image = generate_image_stability(ai_response["image_prompt"])
-                st.session_state.story_chapters.append({"text": initial_prompt, "image": None}) # User text has no image
+                st.session_state.story_chapters.append({"text": initial_prompt, "image": None})
                 st.session_state.story_chapters.append({"text": ai_response["narrative_chapter"], "image": initial_image})
                 st.session_state.latest_choices = ai_response["next_choices"]
                 st.session_state.app_stage = "story_cycle"
@@ -244,7 +238,6 @@ elif st.session_state.app_stage == "story_cycle":
 
     if st.session_state.story_chapters:
         full_story_text = " ".join([ch['text'] for ch in st.session_state.story_chapters])
-        # Use a button to trigger narration for the full story
         if st.button("🔊 Narrate Full Saga"):
             generate_and_play_audio(full_story_text)
 
@@ -260,7 +253,6 @@ elif st.session_state.app_stage == "story_cycle":
                     st.session_state.story_chapters.append({"text": ai_response["narrative_chapter"], "image": new_image})
                     st.session_state.latest_choices = ai_response["next_choices"]
                     
-                    # Narrate just the new chapter automatically
                     generate_and_play_audio(ai_response["narrative_chapter"])
                     
                     st.rerun()
@@ -269,7 +261,6 @@ elif st.session_state.app_stage == "story_cycle":
 st.sidebar.markdown("---")
 st.sidebar.header("Controls")
 if st.sidebar.button("Start a New Saga (Restart)"):
-    # Clear all session state keys to start fresh
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.rerun()
