@@ -10,7 +10,6 @@ import os
 from dotenv import load_dotenv
 import streamlit.components.v1 as components
 import base64
-from elevenlabs.client import ElevenLabs
 
 # Load environment variables at the very beginning of the script.
 load_dotenv()
@@ -26,25 +25,20 @@ def load_api_keys():
     try:
         google_api_key = st.secrets["GOOGLE_API_KEY"]
         stability_api_key = st.secrets["STABILITY_API_KEY"]
-        elevenlabs_api_key = st.secrets["ELEVENLABS_API_KEY"]
     except (KeyError, FileNotFoundError):
         google_api_key = os.getenv("GOOGLE_API_KEY")
         stability_api_key = os.getenv("STABILITY_API_KEY")
-        elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
-    return google_api_key, stability_api_key, elevenlabs_api_key
+    return google_api_key, stability_api_key
 
 
-GOOGLE_API_KEY, STABILITY_API_KEY, ELEVENLABS_API_KEY = load_api_keys()
+GOOGLE_API_KEY, STABILITY_API_KEY = load_api_keys()
 
-# Configure APIs
+# Configure API
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
 else:
     st.error("Google API Key not found. Please set it in your secrets or .env file.")
     st.stop()
-
-if not ELEVENLABS_API_KEY:
-    st.warning("ElevenLabs API Key not found. High-quality narration will be disabled.")
 
 # --- 2. AI and Helper Functions ---
 
@@ -128,71 +122,22 @@ def generate_image_stability(prompt):
             st.error(f"An error occurred with the Stability API: {e}")
             return None
 
-def generate_and_play_audio(text, music_file="background_music.mp3"):
-    """
-    Generates audio using ElevenLabs and plays it via a custom HTML component
-    that includes looping background music.
-    """
-    if not ELEVENLABS_API_KEY:
-        st.warning("Cannot generate narration. ElevenLabs API Key is missing.")
-        return
-
-    try:
-        client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
-        
-        with st.spinner("The Narrator is preparing their voice..."):
-            # The API returns a generator that streams audio chunks.
-            audio_generator = client.text_to_speech.convert(
-                voice_id="21m00Tcm4TlvDq8ikWAM",  # This is the ID for "Rachel".
-                text=text
-            )
-
-            # FIX: Collect the audio chunks from the generator.
-            audio_bytes = b"".join(audio_generator)
-
-        # Encode the complete audio data to Base64
-        audio_b64 = base64.b64encode(audio_bytes).decode()
-        
-        if os.path.exists(music_file):
-            with open(music_file, "rb") as f:
-                music_b64 = base64.b64encode(f.read()).decode()
-        else:
-            st.warning(f"Background music file '{music_file}' not found.")
-            music_b64 = ""
-
-        components.html(f"""
-            <audio id="bg-music" loop>
-                <source src="data:audio/mp3;base64,{music_b64}" type="audio/mp3">
-            </audio>
-            <audio id="narration">
-                <source src="data:audio/mp3;base64,{audio_b64}" type="audio/mp3">
-            </audio>
-
-            <script>
-                const bgMusic = document.getElementById('bg-music');
-                const narration = document.getElementById('narration');
-                
-                // Autoplay background music softly
-                bgMusic.volume = 0.2;
-                bgMusic.play().catch(e => console.error("Autoplay for music failed:", e));
-
-                // When narration starts playing, lower music volume even more
-                narration.onplay = function() {{
-                    bgMusic.volume = 0.1;
-                }};
-
-                // When narration ends, restore music volume
-                narration.onended = function() {{
-                    bgMusic.volume = 0.2;
-                }};
-                
-                // Start playing the narration
-                narration.play().catch(e => console.error("Autoplay for narration failed:", e));
-            </script>
-        """, height=0)
-
-    except Exception as e:
-        st.error(f"An error occurred with the audio generation: {e}")
+# RESTORED: Original browser-based Text-to-Speech function
+def text_to_speech_player(text):
+    """Generates a silent autoplaying HTML5 audio player for narration."""
+    safe_text = text.replace("'", "\\'").replace('"', '\\"').replace("\n", " ").strip()
+    components.html(f"""
+        <script>
+            // Check if speech is already happening, stop it
+            if (window.speechSynthesis.speaking) {{
+                window.speechSynthesis.cancel();
+            }}
+            const utterance = new SpeechSynthesisUtterance("{safe_text}");
+            utterance.pitch = 1;
+            utterance.rate = 0.9;
+            window.speechSynthesis.speak(utterance);
+        </script>
+    """, height=0)
 
 
 # --- 3. Streamlit Application UI and Logic ---
@@ -240,10 +185,31 @@ elif st.session_state.app_stage == "story_cycle":
         st.markdown(f"*{chapter['text']}*")
         st.markdown("---")
 
+    # RESTORED: Original audio controls
     if st.session_state.story_chapters:
         full_story_text = " ".join([ch['text'] for ch in st.session_state.story_chapters])
-        if st.button("🔊 Narrate Full Saga"):
-            generate_and_play_audio(full_story_text)
+        st.subheader("Narration Controls")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("🔊 Narrate Story"):
+                text_to_speech_player(full_story_text)
+        with col2:
+            if st.button("⏸️ Pause/Resume"):
+                # JavaScript to toggle pause/resume
+                components.html("""
+                    <script>
+                        if (window.speechSynthesis.paused) {
+                            window.speechSynthesis.resume();
+                        } else {
+                            window.speechSynthesis.pause();
+                        }
+                    </script>
+                """, height=0)
+        with col3:
+            if st.button("⏹️ Stop"):
+                # JavaScript to stop speech synthesis
+                components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
+
 
     st.header("What Happens Next?")
     if 'latest_choices' in st.session_state and st.session_state.latest_choices:
@@ -256,9 +222,6 @@ elif st.session_state.app_stage == "story_cycle":
                     new_image = generate_image_stability(ai_response["image_prompt"])
                     st.session_state.story_chapters.append({"text": ai_response["narrative_chapter"], "image": new_image})
                     st.session_state.latest_choices = ai_response["next_choices"]
-                    
-                    generate_and_play_audio(ai_response["narrative_chapter"])
-                    
                     st.rerun()
 
 # --- Restart Button ---
